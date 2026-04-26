@@ -22,9 +22,8 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      height: 100vh;
-      text-align: center;
+      justify-content: start;
+      padding-top: 30px;
     }
 
     h2 { margin-bottom: 10px; }
@@ -36,6 +35,7 @@
       border: 10px solid #444;
       position: relative;
       cursor: pointer;
+      margin-top: 20px;
     }
 
     .needle {
@@ -72,12 +72,8 @@
       transform: rotate(calc(var(--i) * 10deg));
     }
 
-    #rankBox {
-      margin-top: 20px;
-    }
-
     button {
-      margin-top: 10px;
+      margin-top: 15px;
       padding: 10px 15px;
       border: none;
       border-radius: 8px;
@@ -85,6 +81,18 @@
       background: #00ffcc;
       color: black;
       font-weight: bold;
+    }
+
+    #leaderboard {
+      margin-top: 30px;
+      width: 80%;
+      max-width: 300px;
+      text-align: left;
+    }
+
+    .entry {
+      padding: 6px 0;
+      border-bottom: 1px solid #333;
     }
   </style>
 </head>
@@ -100,7 +108,11 @@
 <div class="value" id="value">Volume: 0</div>
 <div class="bar" id="bar"></div>
 
-<div id="rankBox"></div>
+<!-- Always visible Share -->
+<button onclick="share()">Share</button>
+
+<!-- Leaderboard -->
+<div id="leaderboard"></div>
 
 <audio id="audio" loop>
   <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3">
@@ -116,100 +128,129 @@
   let volume = 0;
   let started = false;
 
-  function track(name, params = {}) {
-    if (window.gtag) gtag('event', name, params);
+  function track(name, params={}) {
+    if(window.gtag) gtag('event', name, params);
   }
 
-  // Create blocks
-  for (let i = 0; i < 20; i++) {
-    const b = document.createElement('div');
-    b.className = 'block';
+  // blocks
+  for(let i=0;i<20;i++){
+    const b=document.createElement('div');
+    b.className='block';
     b.style.setProperty('--i', i);
     bar.appendChild(b);
   }
 
   const blocks = document.querySelectorAll('.block');
 
-  function updateUI() {
-    needle.style.transform = `rotate(${volume * 2.7}deg)`;
-    valueText.innerText = `Volume: ${volume}`;
+  function updateUI(){
+    needle.style.transform=`rotate(${volume*2.7}deg)`;
+    valueText.innerText=`Volume: ${volume}`;
 
-    blocks.forEach((b, i) => {
-      b.classList.toggle('active', i < volume / 5);
+    blocks.forEach((b,i)=>{
+      b.classList.toggle('active', i < volume/5);
     });
 
-    audio.volume = volume / 100;
+    audio.volume = volume/100;
   }
 
-  dial.addEventListener('mousedown', () => {
-    if (!started) {
+  dial.addEventListener('mousedown',()=>{
+    if(!started){
       audio.play();
       track('volume_interaction_start');
-      started = true;
+      started=true;
     }
   });
 
-  dial.addEventListener('mousemove', (e) => {
-    if (e.buttons !== 1) return;
+  dial.addEventListener('mousemove',(e)=>{
+    if(e.buttons!==1) return;
 
-    const rect = dial.getBoundingClientRect();
-    const x = e.clientX - rect.left - rect.width / 2;
-    const y = e.clientY - rect.top - rect.height / 2;
+    const rect=dial.getBoundingClientRect();
+    const x=e.clientX-rect.left-rect.width/2;
+    const y=e.clientY-rect.top-rect.height/2;
 
-    let angle = Math.atan2(y, x) * (180 / Math.PI) + 180;
-    volume = Math.min(100, Math.floor(angle / 3.6));
+    let angle=Math.atan2(y,x)*(180/Math.PI)+180;
+    volume=Math.min(100, Math.floor(angle/3.6));
 
     updateUI();
 
-    if (volume === 100) {
-      hitMax();
-    }
+    saveScore(volume);
   });
 
-  // USER ID
-  function getUserId() {
-    let id = localStorage.getItem('uid');
-    if (!id) {
-      id = 'u-' + Math.random().toString(36).substr(2, 9);
-      localStorage.setItem('uid', id);
-    }
-    return id;
-  }
+  // USER NAME
+  function getName(){
+    let name=localStorage.getItem('name');
 
-  // NAME
-  function getName() {
-    let name = localStorage.getItem('name');
+    if(!name){
+      const suggestions=["Funky DJ","Sound Ninja","Volume King"];
+      const suggestion=suggestions[Math.floor(Math.random()*suggestions.length)];
 
-    if (!name) {
-      const suggestions = ["Funky DJ", "Sound Ninja", "Volume King"];
-      const suggestion = suggestions[Math.floor(Math.random() * suggestions.length)];
-
-      name = prompt("Enter your name:", suggestion) || suggestion;
+      name=prompt("Enter your name:", suggestion) || suggestion;
       localStorage.setItem('name', name);
     }
 
     return name;
   }
 
-  // HIT MAX
-  async function hitMax() {
-    track('volume_max_reached');
+  // SAVE SCORE (local)
+  function saveScore(v){
+    const name = getName();
 
-    // (Backend not connected yet, placeholder rank)
-    const rank = Math.floor(Math.random() * 50) + 1;
+    let data = JSON.parse(localStorage.getItem("scores") || "[]");
 
-    document.getElementById("rankBox").innerHTML =
-      `<h3>🎉 Rank #${rank}</h3>
-       <button onclick="share(${rank})">Share</button>`;
+    const existing = data.find(d => d.name === name);
+
+    if(!existing || v > existing.volume){
+      data = data.filter(d => d.name !== name);
+      data.push({
+        name: name,
+        volume: v,
+        time: Date.now()
+      });
+
+      localStorage.setItem("scores", JSON.stringify(data));
+    }
+
+    renderLeaderboard();
+  }
+
+  // LEADERBOARD
+  function renderLeaderboard(){
+    let data = JSON.parse(localStorage.getItem("scores") || "[]");
+
+    data.sort((a,b)=>{
+      if(b.volume !== a.volume) return b.volume - a.volume;
+      return b.time - a.time;
+    });
+
+    const top = data.slice(0,5);
+
+    const el = document.getElementById("leaderboard");
+
+    el.innerHTML = "<h3>🏆 Leaderboard</h3>" +
+      top.map(d => `<div class="entry">${d.name} — ${d.volume}</div>`).join('');
   }
 
   // SHARE
-  function share(rank) {
-    const text = `I got rank #${rank} 🎛️ ${location.href}`;
+  function share(){
+    const best = getBestVolume();
+
+    const text = `I could reach till ${best}. You can reach 100. Try now: ${location.href}`;
+
     navigator.clipboard.writeText(text);
     alert("Copied!");
-    track('share_rank_clicked', { rank: rank });
+
+    track('share_clicked', { volume: best });
   }
+
+  function getBestVolume(){
+    let data = JSON.parse(localStorage.getItem("scores") || "[]");
+    const name = getName();
+
+    const user = data.find(d => d.name === name);
+    return user ? user.volume : 0;
+  }
+
+  renderLeaderboard();
 </script>
 
 </body>
