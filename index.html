@@ -1,49 +1,90 @@
 <!DOCTYPE html>
 <html>
 <head>
-  
   <meta charset="UTF-8" />
   <title>Weird Volume Controller</title>
 
-<!-- Google Analytics -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-SR5N94WMG5"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-SR5N94WMG5');
-</script>
+  <!-- Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-SR5N94WMG5"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-SR5N94WMG5');
+  </script>
 
   <style>
     body {
-      background:#111; color:white; text-align:center;
-      font-family:Arial; display:flex; flex-direction:column;
-      align-items:center; justify-content:center; height:100vh;
+      margin: 0;
+      background: #111;
+      color: white;
+      font-family: Arial;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      text-align: center;
     }
 
+    h2 { margin-bottom: 10px; }
+
     .dial {
-      width:200px; height:200px; border-radius:50%;
-      border:10px solid #444; position:relative; cursor:pointer;
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      border: 10px solid #444;
+      position: relative;
+      cursor: pointer;
     }
 
     .needle {
-      width:4px; height:90px; background:#00ffcc;
-      position:absolute; bottom:50%; left:50%;
-      transform-origin:bottom center;
+      width: 4px;
+      height: 90px;
+      background: #00ffcc;
+      position: absolute;
+      bottom: 50%;
+      left: 50%;
+      transform-origin: bottom center;
     }
 
-    .bar { display:flex; gap:4px; margin-top:20px; }
+    .value {
+      margin-top: 15px;
+      font-size: 20px;
+    }
+
+    .bar {
+      display: flex;
+      gap: 4px;
+      margin-top: 20px;
+    }
 
     .block {
-      width:8px; height:10px; background:#333;
-      transition:0.2s;
+      width: 8px;
+      height: 10px;
+      background: #333;
+      transition: all 0.2s ease;
     }
 
     .block.active {
-      background:#00ffcc;
-      height:20px;
-      transform:rotate(calc(var(--i)*10deg));
+      background: #00ffcc;
+      height: 20px;
+      transform: rotate(calc(var(--i) * 10deg));
+    }
+
+    #rankBox {
+      margin-top: 20px;
+    }
+
+    button {
+      margin-top: 10px;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background: #00ffcc;
+      color: black;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -56,8 +97,9 @@
   <div id="needle" class="needle"></div>
 </div>
 
-<div id="value">Volume: 0</div>
-<div id="bar" class="bar"></div>
+<div class="value" id="value">Volume: 0</div>
+<div class="bar" id="bar"></div>
+
 <div id="rankBox"></div>
 
 <audio id="audio" loop>
@@ -65,117 +107,109 @@
 </audio>
 
 <script>
-const dial = document.getElementById('dial');
-const needle = document.getElementById('needle');
-const valueText = document.getElementById('value');
-const bar = document.getElementById('bar');
-const audio = document.getElementById('audio');
+  const dial = document.getElementById('dial');
+  const needle = document.getElementById('needle');
+  const valueText = document.getElementById('value');
+  const bar = document.getElementById('bar');
+  const audio = document.getElementById('audio');
 
-let volume = 0;
-let started = false;
+  let volume = 0;
+  let started = false;
 
-function track(name, params={}) {
-  if(window.gtag) gtag('event', name, params);
-}
+  function track(name, params = {}) {
+    if (window.gtag) gtag('event', name, params);
+  }
 
-// blocks
-for(let i=0;i<20;i++){
-  const b=document.createElement('div');
-  b.className='block';
-  b.style.setProperty('--i', i);
-  bar.appendChild(b);
-}
+  // Create blocks
+  for (let i = 0; i < 20; i++) {
+    const b = document.createElement('div');
+    b.className = 'block';
+    b.style.setProperty('--i', i);
+    bar.appendChild(b);
+  }
 
-const blocks=document.querySelectorAll('.block');
+  const blocks = document.querySelectorAll('.block');
 
-function updateUI(){
-  needle.style.transform=`rotate(${volume*2.7}deg)`;
-  valueText.innerText=`Volume: ${volume}`;
+  function updateUI() {
+    needle.style.transform = `rotate(${volume * 2.7}deg)`;
+    valueText.innerText = `Volume: ${volume}`;
 
-  blocks.forEach((b,i)=>{
-    b.classList.toggle('active', i < volume/5);
+    blocks.forEach((b, i) => {
+      b.classList.toggle('active', i < volume / 5);
+    });
+
+    audio.volume = volume / 100;
+  }
+
+  dial.addEventListener('mousedown', () => {
+    if (!started) {
+      audio.play();
+      track('volume_interaction_start');
+      started = true;
+    }
   });
 
-  audio.volume = volume/100;
-}
+  dial.addEventListener('mousemove', (e) => {
+    if (e.buttons !== 1) return;
 
-dial.addEventListener('mousedown',()=>{
-  if(!started){
-    audio.play();
-    track('volume_interaction_start');
-    started=true;
-  }
-});
+    const rect = dial.getBoundingClientRect();
+    const x = e.clientX - rect.left - rect.width / 2;
+    const y = e.clientY - rect.top - rect.height / 2;
 
-dial.addEventListener('mousemove',(e)=>{
-  if(e.buttons!==1) return;
+    let angle = Math.atan2(y, x) * (180 / Math.PI) + 180;
+    volume = Math.min(100, Math.floor(angle / 3.6));
 
-  const rect=dial.getBoundingClientRect();
-  const x=e.clientX-rect.left-rect.width/2;
-  const y=e.clientY-rect.top-rect.height/2;
+    updateUI();
 
-  let angle=Math.atan2(y,x)*(180/Math.PI)+180;
-  volume=Math.min(100, Math.floor(angle/3.6));
-
-  updateUI();
-
-  if(volume===100){
-    hitMax();
-  }
-});
-
-// USER ID
-function getUserId(){
-  let id=localStorage.getItem('uid');
-  if(!id){
-    id='u-'+Math.random().toString(36).substr(2,9);
-    localStorage.setItem('uid',id);
-  }
-  return id;
-}
-
-// NAME
-function getName(){
-  let name=localStorage.getItem('name');
-
-  if(!name){
-    const suggestions=["Funky DJ","Sound Ninja","Volume King"];
-    const suggestion=suggestions[Math.floor(Math.random()*suggestions.length)];
-
-    name=prompt("Enter your name:", suggestion) || suggestion;
-    localStorage.setItem('name', name);
-  }
-
-  return name;
-}
-
-// HIT MAX
-async function hitMax(){
-  track('volume_max_reached');
-
-  const res = await fetch("https://YOUR_BACKEND_URL/submit",{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({
-      user_id: getUserId(),
-      name: getName()
-    })
+    if (volume === 100) {
+      hitMax();
+    }
   });
 
-  const data = await res.json();
+  // USER ID
+  function getUserId() {
+    let id = localStorage.getItem('uid');
+    if (!id) {
+      id = 'u-' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('uid', id);
+    }
+    return id;
+  }
 
-  document.getElementById("rankBox").innerHTML =
-    `<h3>🎉 Rank #${data.rank}</h3>
-     <button onclick="share(${data.rank})">Share</button>`;
-}
+  // NAME
+  function getName() {
+    let name = localStorage.getItem('name');
 
-// SHARE
-function share(rank){
-  const text=`I got rank #${rank} 🎛️ ${location.href}`;
-  navigator.clipboard.writeText(text);
-  alert("Copied!");
-  track('share_rank');
-}
+    if (!name) {
+      const suggestions = ["Funky DJ", "Sound Ninja", "Volume King"];
+      const suggestion = suggestions[Math.floor(Math.random() * suggestions.length)];
+
+      name = prompt("Enter your name:", suggestion) || suggestion;
+      localStorage.setItem('name', name);
+    }
+
+    return name;
+  }
+
+  // HIT MAX
+  async function hitMax() {
+    track('volume_max_reached');
+
+    // (Backend not connected yet, placeholder rank)
+    const rank = Math.floor(Math.random() * 50) + 1;
+
+    document.getElementById("rankBox").innerHTML =
+      `<h3>🎉 Rank #${rank}</h3>
+       <button onclick="share(${rank})">Share</button>`;
+  }
+
+  // SHARE
+  function share(rank) {
+    const text = `I got rank #${rank} 🎛️ ${location.href}`;
+    navigator.clipboard.writeText(text);
+    alert("Copied!");
+    track('share_rank_clicked', { rank: rank });
+  }
 </script>
 
 </body>
