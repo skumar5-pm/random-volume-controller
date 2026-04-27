@@ -1,257 +1,82 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Weird Volume Controller</title>
-
-  <!-- Google Analytics -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-SR5N94WMG5"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', 'G-SR5N94WMG5');
-  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Random Volume Controller</title>
 
   <style>
     body {
       margin: 0;
-      background: #111;
-      color: white;
-      font-family: Arial;
+      min-height: 100vh;
+      font-family: Arial, sans-serif;
+
+      /* Option 2 background */
+      background: #f5f7fb;
+      background-image: radial-gradient(#dbeafe 1px, transparent 1px);
+      background-size: 20px 20px;
+
+      color: #111827;
+
       display: flex;
-      flex-direction: column;
+      justify-content: center;
       align-items: center;
-      justify-content: start;
-      padding-top: 30px;
     }
 
-    h2 { margin-bottom: 10px; }
-
-    .dial {
-      width: 200px;
-      height: 200px;
-      border-radius: 50%;
-      border: 10px solid #444;
-      position: relative;
-      cursor: pointer;
-      margin-top: 20px;
+    .container {
+      background: white;
+      padding: 24px;
+      border-radius: 14px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+      text-align: center;
+      width: 320px;
     }
 
-    .needle {
-      width: 4px;
-      height: 90px;
-      background: #00ffcc;
-      position: absolute;
-      bottom: 50%;
-      left: 50%;
-      transform-origin: bottom center;
-    }
-
-    .value {
-      margin-top: 15px;
+    h1 {
       font-size: 20px;
-    }
-
-    .bar {
-      display: flex;
-      gap: 4px;
-      margin-top: 20px;
-    }
-
-    .block {
-      width: 8px;
-      height: 10px;
-      background: #333;
-      transition: all 0.2s ease;
-    }
-
-    .block.active {
-      background: #00ffcc;
-      height: 20px;
-      transform: rotate(calc(var(--i) * 10deg));
+      margin-bottom: 20px;
     }
 
     button {
-      margin-top: 15px;
-      padding: 10px 15px;
+      background: #2563eb;
+      color: white;
       border: none;
+      padding: 10px 16px;
       border-radius: 8px;
       cursor: pointer;
-      background: #00ffcc;
-      color: black;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    .volume {
+      font-size: 18px;
+      margin-top: 15px;
       font-weight: bold;
-    }
-
-    #leaderboard {
-      margin-top: 30px;
-      width: 80%;
-      max-width: 300px;
-      text-align: left;
-    }
-
-    .entry {
-      padding: 6px 0;
-      border-bottom: 1px solid #333;
     }
   </style>
 </head>
 
 <body>
 
-<h2>Weird Volume Controller 🎛️</h2>
+  <div class="container">
+    <h1>🎛 Random Volume Controller</h1>
 
-<div id="dial" class="dial">
-  <div id="needle" class="needle"></div>
-</div>
+    <button onclick="changeVolume()">Randomize Volume</button>
 
-<div class="value" id="value">Volume: 0</div>
-<div class="bar" id="bar"></div>
+    <div class="volume" id="volumeText">Volume: 50%</div>
+  </div>
 
-<!-- Always visible Share -->
-<button onclick="share()">Share</button>
-
-<!-- Leaderboard -->
-<div id="leaderboard"></div>
-
-<audio id="audio" loop>
-  <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3">
-</audio>
-
-<script>
-  const dial = document.getElementById('dial');
-  const needle = document.getElementById('needle');
-  const valueText = document.getElementById('value');
-  const bar = document.getElementById('bar');
-  const audio = document.getElementById('audio');
-
-  let volume = 0;
-  let started = false;
-
-  function track(name, params={}) {
-    if(window.gtag) gtag('event', name, params);
-  }
-
-  // blocks
-  for(let i=0;i<20;i++){
-    const b=document.createElement('div');
-    b.className='block';
-    b.style.setProperty('--i', i);
-    bar.appendChild(b);
-  }
-
-  const blocks = document.querySelectorAll('.block');
-
-  function updateUI(){
-    needle.style.transform=`rotate(${volume*2.7}deg)`;
-    valueText.innerText=`Volume: ${volume}`;
-
-    blocks.forEach((b,i)=>{
-      b.classList.toggle('active', i < volume/5);
-    });
-
-    audio.volume = volume/100;
-  }
-
-  dial.addEventListener('mousedown',()=>{
-    if(!started){
-      audio.play();
-      track('volume_interaction_start');
-      started=true;
+  <script>
+    function changeVolume() {
+      const randomVolume = Math.floor(Math.random() * 101); // 0–100
+      document.getElementById("volumeText").innerText =
+        "Volume: " + randomVolume + "%";
     }
-  });
-
-  dial.addEventListener('mousemove',(e)=>{
-    if(e.buttons!==1) return;
-
-    const rect=dial.getBoundingClientRect();
-    const x=e.clientX-rect.left-rect.width/2;
-    const y=e.clientY-rect.top-rect.height/2;
-
-    let angle=Math.atan2(y,x)*(180/Math.PI)+180;
-    volume=Math.min(100, Math.floor(angle/3.6));
-
-    updateUI();
-
-    saveScore(volume);
-  });
-
-  // USER NAME
-  function getName(){
-    let name=localStorage.getItem('name');
-
-    if(!name){
-      const suggestions=["Funky DJ","Sound Ninja","Volume King"];
-      const suggestion=suggestions[Math.floor(Math.random()*suggestions.length)];
-
-      name=prompt("Enter your name:", suggestion) || suggestion;
-      localStorage.setItem('name', name);
-    }
-
-    return name;
-  }
-
-  // SAVE SCORE (local)
-  function saveScore(v){
-    const name = getName();
-
-    let data = JSON.parse(localStorage.getItem("scores") || "[]");
-
-    const existing = data.find(d => d.name === name);
-
-    if(!existing || v > existing.volume){
-      data = data.filter(d => d.name !== name);
-      data.push({
-        name: name,
-        volume: v,
-        time: Date.now()
-      });
-
-      localStorage.setItem("scores", JSON.stringify(data));
-    }
-
-    renderLeaderboard();
-  }
-
-  // LEADERBOARD
-  function renderLeaderboard(){
-    let data = JSON.parse(localStorage.getItem("scores") || "[]");
-
-    data.sort((a,b)=>{
-      if(b.volume !== a.volume) return b.volume - a.volume;
-      return b.time - a.time;
-    });
-
-    const top = data.slice(0,5);
-
-    const el = document.getElementById("leaderboard");
-
-    el.innerHTML = "<h3>🏆 Leaderboard</h3>" +
-      top.map(d => `<div class="entry">${d.name} — ${d.volume}</div>`).join('');
-  }
-
-  // SHARE
-  function share(){
-    const best = getBestVolume();
-
-    const text = `I could reach till ${best}. You can reach 100. Try now: ${location.href}`;
-
-    navigator.clipboard.writeText(text);
-    alert("Copied!");
-
-    track('share_clicked', { volume: best });
-  }
-
-  function getBestVolume(){
-    let data = JSON.parse(localStorage.getItem("scores") || "[]");
-    const name = getName();
-
-    const user = data.find(d => d.name === name);
-    return user ? user.volume : 0;
-  }
-
-  renderLeaderboard();
-</script>
+  </script>
 
 </body>
 </html>
