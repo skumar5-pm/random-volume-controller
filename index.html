@@ -28,6 +28,42 @@
 
     h2 { margin-bottom: 10px; }
 
+    /* Name input styling */
+    .name-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 10px;
+      margin-bottom: 5px;
+    }
+
+    .name-label {
+      font-size: 13px;
+      color: #aaa;
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+    }
+
+    #nameInput {
+      background: #1c1c1c;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #00ffcc;
+      font-family: Arial;
+      font-size: 16px;
+      font-weight: bold;
+      padding: 10px 14px;
+      text-align: center;
+      width: 220px;
+      outline: none;
+      transition: border 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    #nameInput:focus {
+      border-color: #00ffcc;
+      box-shadow: 0 0 0 3px rgba(0, 255, 204, 0.15);
+    }
+
     .dial {
       width: 200px;
       height: 200px;
@@ -101,6 +137,12 @@
 
 <h2>Weird Volume Controller 🎛️</h2>
 
+<!-- Name input (always visible, editable) -->
+<div class="name-wrap">
+  <label for="nameInput" class="name-label">YOUR NAME</label>
+  <input type="text" id="nameInput" maxlength="30" autocomplete="off" />
+</div>
+
 <div id="dial" class="dial">
   <div id="needle" class="needle"></div>
 </div>
@@ -124,6 +166,7 @@
   const valueText = document.getElementById('value');
   const bar = document.getElementById('bar');
   const audio = document.getElementById('audio');
+  const nameInput = document.getElementById('nameInput');
 
   let volume = 0;
   let started = false;
@@ -176,22 +219,54 @@
     saveScore(volume);
   });
 
-  // USER NAME
-  function getName(){
-    let name=localStorage.getItem('name');
+  // ---------- NAME HANDLING ----------
 
-    if(!name){
-      const suggestions=["Funky DJ","Sound Ninja","Volume King"];
-      const suggestion=suggestions[Math.floor(Math.random()*suggestions.length)];
+  const SUGGESTIONS = ["Funky DJ", "Sound Ninja", "Volume King"];
 
-      name=prompt("Enter your name:", suggestion) || suggestion;
-      localStorage.setItem('name', name);
-    }
-
-    return name;
+  function randomSuggestion(){
+    return SUGGESTIONS[Math.floor(Math.random() * SUGGESTIONS.length)];
   }
 
-  // SAVE SCORE (local)
+  // Initialize the input: saved name if any, else a random suggestion (also persisted)
+  function initName(){
+    let name = localStorage.getItem('name');
+    if(!name){
+      name = randomSuggestion();
+      localStorage.setItem('name', name);
+    }
+    nameInput.value = name;
+  }
+
+  function getName(){
+    // Always read latest from input; fall back to storage if somehow empty
+    const v = (nameInput.value || '').trim();
+    if(v) return v;
+    return localStorage.getItem('name') || randomSuggestion();
+  }
+
+  // Save name as the user types (debounced) and refresh leaderboard label
+  let nameSaveTimer;
+  nameInput.addEventListener('input', () => {
+    clearTimeout(nameSaveTimer);
+    nameSaveTimer = setTimeout(() => {
+      const v = (nameInput.value || '').trim();
+      if(v) localStorage.setItem('name', v);
+      renderLeaderboard();
+    }, 200);
+  });
+
+  // If user leaves the field empty, restore a suggestion on blur
+  nameInput.addEventListener('blur', () => {
+    if(!nameInput.value.trim()){
+      const s = randomSuggestion();
+      nameInput.value = s;
+      localStorage.setItem('name', s);
+      renderLeaderboard();
+    }
+  });
+
+  // ---------- SCORES ----------
+
   function saveScore(v){
     const name = getName();
 
@@ -213,7 +288,6 @@
     renderLeaderboard();
   }
 
-  // LEADERBOARD
   function renderLeaderboard(){
     let data = JSON.parse(localStorage.getItem("scores") || "[]");
 
@@ -250,6 +324,8 @@
     return user ? user.volume : 0;
   }
 
+  // Boot
+  initName();
   renderLeaderboard();
 </script>
 
