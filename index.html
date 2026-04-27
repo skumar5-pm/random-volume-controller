@@ -204,6 +204,35 @@
     }
   });
 
+  // ---------- DWELL-BASED COMMIT ----------
+  // Score is committed when EITHER:
+  //   (a) the user holds a value for 2s without moving, or
+  //   (b) the user releases the mouse.
+  // Whichever happens first.
+
+  const DWELL_MS = 2000;
+  let dwellTimer = null;
+  let pendingVolume = null;
+
+  function scheduleCommit(v){
+    pendingVolume = v;
+    clearTimeout(dwellTimer);
+    dwellTimer = setTimeout(() => {
+      if(pendingVolume !== null){
+        saveScore(pendingVolume);
+        pendingVolume = null;
+      }
+    }, DWELL_MS);
+  }
+
+  function commitNow(){
+    clearTimeout(dwellTimer);
+    if(pendingVolume !== null){
+      saveScore(pendingVolume);
+      pendingVolume = null;
+    }
+  }
+
   dial.addEventListener('mousemove',(e)=>{
     if(e.buttons!==1) return;
 
@@ -216,8 +245,12 @@
 
     updateUI();
 
-    saveScore(volume);
+    // Don't save yet — wait for dwell or mouseup
+    scheduleCommit(volume);
   });
+
+  // Mouseup anywhere on the page commits the current value immediately
+  window.addEventListener('mouseup', commitNow);
 
   // ---------- NAME HANDLING ----------
 
