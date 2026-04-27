@@ -13,6 +13,9 @@
     gtag('config', 'G-SR5N94WMG5');
   </script>
 
+  <!-- Supabase JS client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
   <style>
     body {
       margin: 0;
@@ -28,7 +31,6 @@
 
     h2 { margin-bottom: 10px; }
 
-    /* Name input styling */
     .name-wrap {
       display: flex;
       flex-direction: column;
@@ -130,6 +132,13 @@
       padding: 6px 0;
       border-bottom: 1px solid #333;
     }
+
+    .lb-status {
+      color: #888;
+      font-size: 13px;
+      font-style: italic;
+      padding: 6px 0;
+    }
   </style>
 </head>
 
@@ -137,7 +146,6 @@
 
 <h2>Weird Volume Controller 🎛️</h2>
 
-<!-- Name input (always visible, editable) -->
 <div class="name-wrap">
   <label for="nameInput" class="name-label">YOUR NAME</label>
   <input type="text" id="nameInput" maxlength="30" autocomplete="off" />
@@ -150,10 +158,8 @@
 <div class="value" id="value">Volume: 0</div>
 <div class="bar" id="bar"></div>
 
-<!-- Always visible Share -->
 <button onclick="share()">Share</button>
 
-<!-- Leaderboard -->
 <div id="leaderboard"></div>
 
 <audio id="audio" loop>
@@ -161,6 +167,13 @@
 </audio>
 
 <script>
+  // ============ SUPABASE CONFIG — FILL THESE IN ============
+  const SUPABASE_URL = 'https://xdbxpmmegyfbxacepaio.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhkYnhwbW1lZ3lmYnhhY2VwYWlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMTczNTAsImV4cCI6MjA5Mjc5MzM1MH0.H1g1uSaUsQHtTxACF5TjMTApoFTXwgJZtUKPF1zuhSM';
+  // =========================================================
+
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
   const dial = document.getElementById('dial');
   const needle = document.getElementById('needle');
   const valueText = document.getElementById('value');
@@ -175,24 +188,21 @@
     if(window.gtag) gtag('event', name, params);
   }
 
-  // blocks
+  // Build the visualizer blocks
   for(let i=0;i<20;i++){
     const b=document.createElement('div');
     b.className='block';
     b.style.setProperty('--i', i);
     bar.appendChild(b);
   }
-
   const blocks = document.querySelectorAll('.block');
 
   function updateUI(){
     needle.style.transform=`rotate(${volume*2.7}deg)`;
     valueText.innerText=`Volume: ${volume}`;
-
     blocks.forEach((b,i)=>{
       b.classList.toggle('active', i < volume/5);
     });
-
     audio.volume = volume/100;
   }
 
@@ -205,11 +215,6 @@
   });
 
   // ---------- DWELL-BASED COMMIT ----------
-  // Score is committed when EITHER:
-  //   (a) the user holds a value for 2s without moving, or
-  //   (b) the user releases the mouse.
-  // Whichever happens first.
-
   const DWELL_MS = 2000;
   let dwellTimer = null;
   let pendingVolume = null;
@@ -235,32 +240,23 @@
 
   dial.addEventListener('mousemove',(e)=>{
     if(e.buttons!==1) return;
-
     const rect=dial.getBoundingClientRect();
     const x=e.clientX-rect.left-rect.width/2;
     const y=e.clientY-rect.top-rect.height/2;
-
     let angle=Math.atan2(y,x)*(180/Math.PI)+180;
     volume=Math.min(100, Math.floor(angle/3.6));
-
     updateUI();
-
-    // Don't save yet — wait for dwell or mouseup
     scheduleCommit(volume);
   });
 
-  // Mouseup anywhere on the page commits the current value immediately
   window.addEventListener('mouseup', commitNow);
 
   // ---------- NAME HANDLING ----------
-
   const SUGGESTIONS = ["Funky DJ", "Sound Ninja", "Volume King"];
-
   function randomSuggestion(){
     return SUGGESTIONS[Math.floor(Math.random() * SUGGESTIONS.length)];
   }
 
-  // Initialize the input: saved name if any, else a random suggestion (also persisted)
   function initName(){
     let name = localStorage.getItem('name');
     if(!name){
@@ -271,13 +267,11 @@
   }
 
   function getName(){
-    // Always read latest from input; fall back to storage if somehow empty
     const v = (nameInput.value || '').trim();
     if(v) return v;
     return localStorage.getItem('name') || randomSuggestion();
   }
 
-  // Save name as the user types (debounced) and refresh leaderboard label
   let nameSaveTimer;
   nameInput.addEventListener('input', () => {
     clearTimeout(nameSaveTimer);
@@ -288,7 +282,6 @@
     }, 200);
   });
 
-  // If user leaves the field empty, restore a suggestion on blur
   nameInput.addEventListener('blur', () => {
     if(!nameInput.value.trim()){
       const s = randomSuggestion();
@@ -298,63 +291,87 @@
     }
   });
 
-  // ---------- SCORES ----------
+  // ---------- SCORES (GLOBAL via Supabase) ----------
 
-  function saveScore(v){
+  function getLocalBest(){
+    return parseInt(localStorage.getItem('myBest') || '0', 10);
+  }
+  function setLocalBest(v){
+    if(v > getLocalBest()) localStorage.setItem('myBest', String(v));
+  }
+
+  async function saveScore(v){
     const name = getName();
+    setLocalBest(v);
 
-    let data = JSON.parse(localStorage.getItem("scores") || "[]");
+    try {
+      const { error } = await sb
+        .from('scores')
+        .insert({ name: name, volume: v });
 
-    const existing = data.find(d => d.name === name);
-
-    if(!existing || v > existing.volume){
-      data = data.filter(d => d.name !== name);
-      data.push({
-        name: name,
-        volume: v,
-        time: Date.now()
-      });
-
-      localStorage.setItem("scores", JSON.stringify(data));
+      if(error){
+        console.warn('Supabase insert failed:', error.message);
+        return;
+      }
+      renderLeaderboard();
+    } catch(err){
+      console.warn('Network error saving score:', err);
     }
-
-    renderLeaderboard();
   }
 
-  function renderLeaderboard(){
-    let data = JSON.parse(localStorage.getItem("scores") || "[]");
+  async function renderLeaderboard(){
+    const el = document.getElementById('leaderboard');
+    el.innerHTML = "<h3>🏆 Global Leaderboard</h3><div class='lb-status'>Loading…</div>";
 
-    data.sort((a,b)=>{
-      if(b.volume !== a.volume) return b.volume - a.volume;
-      return b.time - a.time;
-    });
+    try {
+      const { data, error } = await sb
+        .from('scores')
+        .select('name, volume, created_at')
+        .order('volume', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(100);
 
-    const top = data.slice(0,5);
+      if(error) throw error;
 
-    const el = document.getElementById("leaderboard");
+      // Keep only each player's best score
+      const bestByName = new Map();
+      for(const row of data){
+        const prev = bestByName.get(row.name);
+        if(!prev || row.volume > prev.volume){
+          bestByName.set(row.name, row);
+        }
+      }
 
-    el.innerHTML = "<h3>🏆 Leaderboard</h3>" +
-      top.map(d => `<div class="entry">${d.name} — ${d.volume}</div>`).join('');
+      const top = Array.from(bestByName.values())
+        .sort((a,b) => b.volume - a.volume || new Date(b.created_at) - new Date(a.created_at))
+        .slice(0,5);
+
+      if(top.length === 0){
+        el.innerHTML = "<h3>🏆 Global Leaderboard</h3><div class='lb-status'>No scores yet — be the first!</div>";
+        return;
+      }
+
+      el.innerHTML = "<h3>🏆 Global Leaderboard</h3>" +
+        top.map(d => `<div class="entry">${escapeHtml(d.name)} — ${d.volume}</div>`).join('');
+    } catch(err){
+      console.warn('Leaderboard load failed:', err);
+      el.innerHTML = "<h3>🏆 Global Leaderboard</h3><div class='lb-status'>Couldn't load leaderboard.</div>";
+    }
   }
 
-  // SHARE
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+
+  // ---------- SHARE ----------
   function share(){
-    const best = getBestVolume();
-
+    const best = getLocalBest();
     const text = `I could reach till ${best}. You can reach 100. Try now: ${location.href}`;
-
     navigator.clipboard.writeText(text);
     alert("Copied!");
-
     track('share_clicked', { volume: best });
-  }
-
-  function getBestVolume(){
-    let data = JSON.parse(localStorage.getItem("scores") || "[]");
-    const name = getName();
-
-    const user = data.find(d => d.name === name);
-    return user ? user.volume : 0;
   }
 
   // Boot
